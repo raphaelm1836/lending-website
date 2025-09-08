@@ -1,0 +1,1538 @@
+sunanchor-capital/
+  app/
+    api/
+      apply/route.ts
+      contact/route.ts
+    about/page.tsx
+    apply/page.tsx
+    contact/page.tsx
+    disclosures/page.tsx
+    privacy/page.tsx
+    products/page.tsx
+    favicon.ico
+    globals.css
+    layout.tsx
+    page.tsx
+  components/
+    ui/
+      button.tsx
+      input.tsx
+      textarea.tsx
+      select.tsx
+      label.tsx
+      card.tsx
+      badge.tsx
+    header.tsx
+    footer.tsx
+    hero.tsx
+    value-props.tsx
+    product-cards.tsx
+    steps.tsx
+    testimonials.tsx
+    logo-strip.tsx
+    mobile-cta.tsx
+    seo-jsonld.tsx
+    form/apply-form.tsx
+    form/contact-form.tsx
+  lib/
+    validation.ts
+    storage.ts
+    rate-limit.ts
+    ip.ts
+    utils.ts
+  data/
+    applications.json
+    contacts.json
+  public/
+    logo.svg
+  .env.example
+  next.config.mjs
+  package.json
+  postcss.config.js
+  tailwind.config.ts
+  tsconfig.json
+  README.md
+package.json
+{
+  "name": "sunanchor-capital",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^3.6.0",
+    "lucide-react": "^0.462.0",
+    "next": "^14.2.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.52.0",
+    "sonner": "^1.5.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.19",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^14.2.4",
+    "postcss": "^8.4.39",
+    "tailwindcss": "^3.4.9",
+    "typescript": "^5.5.4"
+  }
+}
+next.config.mjs
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  experimental: {
+    typedRoutes: true
+  }
+};
+export default nextConfig;
+tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitAny": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules"]
+}
+tailwind.config.ts
+import type { Config } from "tailwindcss";
+
+const config: Config = {
+  content: [
+    "./app/**/*.{ts,tsx}",
+    "./components/**/*.{ts,tsx}",
+    "./public/**/*.svg"
+  ],
+  theme: {
+    extend: {
+      colors: {
+        brand: {
+          DEFAULT: "#1e3a8a",
+          dark: "#0f2a6a",
+          light: "#3b82f6"
+        }
+      }
+    }
+  },
+  plugins: []
+};
+export default config;
+postcss.config.js
+module.exports = {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {}
+  }
+};
+.env.example
+# Email target or webhook URL for submissions (optional integrations)
+EMAIL_TO="loans@sunanchorcapital.com"
+WEBHOOK_URL="https://example.com/webhook"
+app/globals.css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #0b1220;
+  --foreground: #0b1220;
+}
+html:focus-within {
+  scroll-behavior: smooth;
+}
+body {
+  @apply bg-white text-slate-800 antialiased;
+}
+a {
+  @apply underline-offset-2;
+}
+.btn-primary {
+  @apply bg-blue-700 hover:bg-blue-800 text-white;
+}
+lib/utils.ts
+export function cn(...classes: (string | false | null | undefined)[]) {
+  return classes.filter(Boolean).join(" ");
+}
+lib/ip.ts
+import { headers } from "next/headers";
+
+export function getClientIp(): string {
+  const h = headers();
+  // Common headers set by proxies / Vercel
+  const ip =
+    h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    h.get("x-real-ip") ||
+    "unknown";
+  return ip;
+}
+lib/rate-limit.ts
+type Bucket = { tokens: number; last: number };
+
+const buckets = new Map<string, Bucket>();
+
+export function rateLimit(key: string, limit = 10, windowMs = 60_000): boolean {
+  const now = Date.now();
+  const bucket = buckets.get(key) ?? { tokens: limit, last: now };
+  const elapsed = now - bucket.last;
+  const refill = Math.floor(elapsed / windowMs) * limit;
+  bucket.tokens = Math.min(limit, bucket.tokens + (refill > 0 ? refill : 0));
+  bucket.last = now;
+  if (bucket.tokens <= 0) {
+    buckets.set(key, bucket);
+    return false;
+  }
+  bucket.tokens -= 1;
+  buckets.set(key, bucket);
+  return true;
+}
+lib/storage.ts
+import { promises as fs } from "fs";
+import path from "path";
+
+const dataDir = path.join(process.cwd(), "data");
+
+async function ensureDataDir() {
+  try {
+    await fs.mkdir(dataDir, { recursive: true });
+  } catch {
+    // ignore
+  }
+}
+
+export async function appendJson(filename: string, record: unknown) {
+  await ensureDataDir();
+  const file = path.join(dataDir, filename);
+  let arr: unknown[] = [];
+  try {
+    const raw = await fs.readFile(file, "utf8");
+    arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) arr = [];
+  } catch {
+    arr = [];
+  }
+  arr.push({ ...record, _ts: new Date().toISOString() });
+  await fs.writeFile(file, JSON.stringify(arr, null, 2), "utf8");
+}
+lib/validation.ts
+import { z } from "zod";
+
+export const applySchema = z.object({
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  email: z.string().email("Valid email required"),
+  loanAmount: z
+    .string()
+    .min(1, "Loan amount is required")
+    .refine((v) => !isNaN(Number(v)) && Number(v) > 0, "Enter a valid number"),
+  purpose: z.enum([
+    "Working Capital",
+    "Inventory",
+    "Equipment",
+    "Marketing",
+    "Bridge",
+    "Other"
+  ]),
+  monthlyRevenue: z.string().optional(),
+  timeInBusiness: z.string().optional(),
+  website: z.string().url("Enter a valid URL").optional().or(z.literal("")),
+  honeypot: z.string().optional()
+});
+
+export const contactSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  email: z.string().email("Valid email required"),
+  phone: z.string().optional(),
+  message: z.string().min(1, "Message is required"),
+  honeypot: z.string().optional()
+});
+data/applications.json
+[]
+data/contacts.json
+[]
+components/ui/button.tsx
+import * as React from "react";
+import { cn } from "@/lib/utils";
+
+type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: "primary" | "secondary" | "ghost";
+  size?: "sm" | "md" | "lg";
+};
+
+export function Button({
+  className,
+  variant = "primary",
+  size = "md",
+  ...props
+}: ButtonProps) {
+  const base =
+    "inline-flex items-center justify-center rounded-md font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:opacity-60 disabled:pointer-events-none";
+  const variants = {
+    primary: "bg-blue-700 hover:bg-blue-800 text-white",
+    secondary:
+      "bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-300",
+    ghost: "bg-transparent hover:bg-slate-100 text-slate-900"
+  };
+  const sizes = {
+    sm: "h-9 px-3 text-sm",
+    md: "h-10 px-4",
+    lg: "h-12 px-6 text-lg"
+  };
+  return (
+    <button
+      className={cn(base, variants[variant], sizes[size], className)}
+      {...props}
+    />
+  );
+}
+components/ui/input.tsx
+import * as React from "react";
+import { cn } from "@/lib/utils";
+
+export interface InputProps
+  extends React.InputHTMLAttributes<HTMLInputElement> {}
+
+export const Input = React.forwardRef<HTMLInputElement, InputProps>(
+  ({ className, ...props }, ref) => (
+    <input
+      ref={ref}
+      className={cn(
+        "flex h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600",
+        className
+      )}
+      {...props}
+    />
+  )
+);
+Input.displayName = "Input";
+components/ui/textarea.tsx
+import * as React from "react";
+import { cn } from "@/lib/utils";
+
+export interface TextareaProps
+  extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {}
+
+export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
+  ({ className, ...props }, ref) => (
+    <textarea
+      ref={ref}
+      className={cn(
+        "flex min-h-[100px] w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600",
+        className
+      )}
+      {...props}
+    />
+  )
+);
+Textarea.displayName = "Textarea";
+components/ui/select.tsx
+import * as React from "react";
+import { cn } from "@/lib/utils";
+
+export interface SelectProps
+  extends React.SelectHTMLAttributes<HTMLSelectElement> {}
+
+export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
+  ({ className, children, ...props }, ref) => (
+    <select
+      ref={ref}
+      className={cn(
+        "flex h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600",
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </select>
+  )
+);
+Select.displayName = "Select";
+components/ui/label.tsx
+import * as React from "react";
+import { cn } from "@/lib/utils";
+
+export function Label({
+  className,
+  ...props
+}: React.LabelHTMLAttributes<HTMLLabelElement>) {
+  return (
+    <label
+      className={cn("text-sm font-medium text-slate-700", className)}
+      {...props}
+    />
+  );
+}
+components/ui/card.tsx
+import * as React from "react";
+import { cn } from "@/lib/utils";
+
+export function Card({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={cn(
+        "rounded-xl border border-slate-200 bg-white shadow-sm",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+export function CardHeader({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("p-6", className)} {...props} />;
+}
+export function CardTitle({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLHeadingElement>) {
+  return <h3 className={cn("text-lg font-semibold", className)} {...props} />;
+}
+export function CardContent({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("px-6 pb-6", className)} {...props} />;
+}
+components/ui/badge.tsx
+import * as React from "react";
+import { cn } from "@/lib/utils";
+
+export function Badge({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLSpanElement>) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+components/header.tsx
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { Button } from "./ui/button";
+
+const nav = [
+  { href: "/products", label: "Products" },
+  { href: "/about", label: "About" },
+  { href: "/contact", label: "Contact" },
+  { href: "/privacy", label: "Privacy" },
+  { href: "/disclosures", label: "Disclosures" }
+];
+
+export function Header() {
+  const pathname = usePathname();
+  return (
+    <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/80 backdrop-blur">
+      <a
+        href="#content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 rounded bg-blue-700 px-3 py-2 text-white"
+      >
+        Skip to content
+      </a>
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+        <Link href="/" className="flex items-center gap-2 no-underline">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded bg-blue-700 text-white font-bold">
+            SA
+          </span>
+          <span className="text-lg font-bold tracking-tight text-slate-900">
+            SunAnchor Capital
+          </span>
+        </Link>
+        <nav className="hidden items-center gap-6 md:flex">
+          {nav.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "text-sm font-medium no-underline hover:text-blue-800",
+                pathname === item.href ? "text-blue-800" : "text-slate-700"
+              )}
+            >
+              {item.label}
+            </Link>
+          ))}
+          <Link href="/apply" className="no-underline">
+            <Button size="sm">Apply Now</Button>
+          </Link>
+        </nav>
+        <div className="md:hidden">
+          <Link href="/apply" className="no-underline">
+            <Button size="sm">Apply</Button>
+          </Link>
+        </div>
+      </div>
+    </header>
+  );
+}
+components/footer.tsx
+import Link from "next/link";
+
+export function Footer() {
+  return (
+    <footer className="border-t border-slate-200 bg-white">
+      <div className="mx-auto max-w-6xl px-4 py-10">
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
+          <div>
+            <div className="mb-2 text-lg font-semibold">SunAnchor Capital</div>
+            <p className="text-sm text-slate-600">
+              Financing that moves your business forward.
+            </p>
+          </div>
+          <div>
+            <div className="mb-2 text-sm font-semibold uppercase text-slate-600">
+              Quick Links
+            </div>
+            <ul className="space-y-2 text-sm">
+              <li><Link href="/apply" className="hover:text-blue-800 no-underline">Apply</Link></li>
+              <li><Link href="/products" className="hover:text-blue-800 no-underline">Products</Link></li>
+              <li><Link href="/about" className="hover:text-blue-800 no-underline">About</Link></li>
+              <li><Link href="/contact" className="hover:text-blue-800 no-underline">Contact</Link></li>
+              <li><Link href="/privacy" className="hover:text-blue-800 no-underline">Privacy</Link></li>
+              <li><Link href="/disclosures" className="hover:text-blue-800 no-underline">Disclosures</Link></li>
+            </ul>
+          </div>
+          <div>
+            <div className="mb-2 text-sm font-semibold uppercase text-slate-600">
+              Company
+            </div>
+            <p className="text-sm text-slate-600">
+              123 Market St, Suite 500, New York, NY 10001
+              <br />
+              Mon–Fri 9:00am–6:00pm ET
+            </p>
+            <div className="mt-3 flex gap-3 text-slate-500">
+              <span className="text-xs">SSL</span>
+              <span className="text-xs">Privacy</span>
+              <span className="text-xs">Secure</span>
+            </div>
+          </div>
+        </div>
+        <div className="mt-8 space-y-2 text-xs text-slate-500">
+          <p>
+            SunAnchor Capital is not a bank. Financing is subject to approval
+            and due diligence. Terms, amounts, and timing vary. Merchant Cash
+            Advances involve the purchase of receivables and are not loans. Read
+            all agreements and disclosures carefully before signing.
+          </p>
+          <p>
+            By clicking Apply, you consent to be contacted via email, phone, and
+            text. Message/data rates may apply.
+          </p>
+          <p>© {new Date().getFullYear()} SunAnchor Capital. All rights reserved.</p>
+        </div>
+      </div>
+    </footer>
+  );
+}
+components/hero.tsx
+import Link from "next/link";
+import { Button } from "./ui/button";
+
+export function Hero() {
+  return (
+    <section className="relative overflow-hidden bg-gradient-to-b from-slate-50 to-white">
+      <div className="mx-auto max-w-6xl px-4 py-16 md:py-24">
+        <div className="max-w-2xl">
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-5xl">
+            Flexible Funding Built for Small Businesses
+          </h1>
+          <p className="mt-4 text-lg text-slate-700">
+            Short-term working capital, merchant cash advances, and asset-backed
+            solutions—clear terms, fast decisions, dedicated support.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link href="/apply" className="no-underline">
+              <Button size="lg">Apply Now</Button>
+            </Link>
+            <Link href="/products" className="no-underline">
+              <Button size="lg" variant="secondary">Learn More</Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+components/value-props.tsx
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Badge } from "./ui/badge";
+import { Rocket, RefreshCcw, BadgeDollarSign, Headphones } from "lucide-react";
+
+export function ValueProps() {
+  const items = [
+    {
+      title: "Fast Decisions",
+      desc:
+        "Simple application and streamlined underwriting. Many decisions in 24–48 hours (not guaranteed).",
+      icon: Rocket
+    },
+    {
+      title: "Flexible Repayment",
+      desc:
+        "Daily, weekly, or monthly depending on product—matched to how your business earns.",
+      icon: RefreshCcw
+    },
+    {
+      title: "Transparent Pricing",
+      desc:
+        "Straightforward terms with clear costs and no surprise fees. Understand your total cost before you sign.",
+      icon: BadgeDollarSign
+    },
+    {
+      title: "Dedicated Support",
+      desc:
+        "Work with real people who know small business. We guide you from application to funding.",
+      icon: Headphones
+    }
+  ];
+  return (
+    <section className="bg-white">
+      <div className="mx-auto max-w-6xl px-4 py-12">
+        <div className="mb-6">
+          <Badge>Why SunAnchor</Badge>
+        </div>
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {items.map(({ title, desc, icon: Icon }) => (
+            <Card key={title}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Icon className="h-5 w-5 text-blue-700" />
+                  {title}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-slate-700">{desc}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+components/product-cards.tsx
+import Link from "next/link";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Button } from "./ui/button";
+
+export function ProductCards() {
+  const items = [
+    {
+      title: "Short-Term Loans",
+      desc:
+        "Working capital for inventory, payroll, and marketing with a fixed term and predictable payments.",
+      href: "/products#stl"
+    },
+    {
+      title: "Merchant Cash Advance (MCA)",
+      desc:
+        "Upfront capital in exchange for a portion of future card sales. Variable remittances tied to performance.",
+      href: "/products#mca"
+    },
+    {
+      title: "Asset-Backed Lending",
+      desc:
+        "Use receivables, equipment, inventory, or real estate as collateral for larger amounts.",
+      href: "/products#abl"
+    }
+  ];
+  return (
+    <section className="bg-slate-50">
+      <div className="mx-auto max-w-6xl px-4 py-12">
+        <h2 className="text-2xl font-semibold text-slate-900">Products</h2>
+        <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((item) => (
+            <Card key={item.title}>
+              <CardHeader>
+                <CardTitle>{item.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-slate-700">{item.desc}</p>
+                <div className="mt-4">
+                  <Link href="/apply" className="no-underline">
+                    <Button>Apply Now</Button>
+                  </Link>
+                  <Link href={item.href} className="ml-3 text-sm no-underline">
+                    Learn more →
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+components/steps.tsx
+export function Steps() {
+  const steps = [
+    { num: 1, text: "Apply in minutes" },
+    { num: 2, text: "Underwriting review" },
+    { num: 3, text: "Get an offer" },
+    { num: 4, text: "Receive funds" }
+  ];
+  return (
+    <section className="bg-white">
+      <div className="mx-auto max-w-6xl px-4 py-12">
+        <h2 className="text-2xl font-semibold text-slate-900">How it works</h2>
+        <ol className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {steps.map((s) => (
+            <li key={s.num} className="rounded-lg border border-slate-200 p-4">
+              <div className="text-sm font-semibold text-blue-800">Step {s.num}</div>
+              <div className="mt-1 text-slate-700">{s.text}</div>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  );
+}
+components/testimonials.tsx
+export function Testimonials() {
+  return (
+    <section className="bg-slate-50">
+      <div className="mx-auto max-w-6xl px-4 py-12">
+        <h2 className="text-2xl font-semibold text-slate-900">What businesses say</h2>
+        <div className="mt-6 grid gap-6 md:grid-cols-2">
+          <blockquote className="rounded-lg border border-slate-200 bg-white p-6">
+            <p className="text-slate-800">
+              “SunAnchor helped us restock quickly before the holiday rush. Clear terms,
+              quick turnaround, and real people on the line.”
+            </p>
+            <footer className="mt-3 text-sm text-slate-600">Retail Owner — Sample testimonial</footer>
+          </blockquote>
+          <blockquote className="rounded-lg border border-slate-200 bg-white p-6">
+            <p className="text-slate-800">
+              “The process was straightforward. The offer fit our cash flow and we funded
+              fast enough to take on a new contract.”
+            </p>
+            <footer className="mt-3 text-sm text-slate-600">Home Services — Sample testimonial</footer>
+          </blockquote>
+        </div>
+      </div>
+    </section>
+  );
+}
+components/logo-strip.tsx
+export function LogoStrip() {
+  const industries = [
+    "Retail", "Restaurant", "E‑commerce", "Home Services", "Healthcare", "Logistics"
+  ];
+  return (
+    <section className="bg-white">
+      <div className="mx-auto max-w-6xl px-4 py-8">
+        <p className="text-center text-sm text-slate-600">
+          Serving SMBs across industries
+        </p>
+        <div className="mt-4 grid grid-cols-2 gap-3 text-center text-slate-500 sm:grid-cols-3 md:grid-cols-6">
+          {industries.map((name) => (
+            <div key={name} className="rounded border border-slate-200 py-3 text-xs">
+              {name}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+components/mobile-cta.tsx
+import Link from "next/link";
+import { Button } from "./ui/button";
+
+export function MobileStickyCTA() {
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white p-3 md:hidden">
+      <Link href="/apply" className="no-underline">
+        <Button className="w-full" size="lg">
+          Apply Now
+        </Button>
+      </Link>
+    </div>
+  );
+}
+components/seo-jsonld.tsx
+export function SEOJsonLd() {
+  const org = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "SunAnchor Capital",
+    url: "https://www.sunanchorcapital.com",
+    logo: "https://www.sunanchorcapital.com/logo.svg",
+    sameAs: []
+  };
+  const website = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "SunAnchor Capital",
+    url: "https://www.sunanchorcapital.com",
+    potentialAction: {
+      "@type": "SearchAction",
+      target: "https://www.sunanchorcapital.com/?q={search_term_string}",
+      "query-input": "required name=search_term_string"
+    }
+  };
+  const product = {
+    "@context": "https://schema.org",
+    "@type": "FinancialProduct",
+    name: "Small Business Financing",
+    provider: { "@type": "Organization", name: "SunAnchor Capital" },
+    description:
+      "Short-term working capital, merchant cash advance, and asset-backed lending for small businesses."
+  };
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(org) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(website) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(product) }} />
+    </>
+  );
+}
+components/form/apply-form.tsx
+"use client";
+
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { applySchema } from "@/lib/validation";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { useState } from "react";
+
+type ApplyValues = z.infer<typeof applySchema>;
+
+export function ApplyForm() {
+  const [submitting, setSubmitting] = useState(false);
+  const { register, handleSubmit, formState: { errors }, reset } = useForm<ApplyValues>({
+    resolver: zodResolver(applySchema)
+  });
+
+  const onSubmit = async (data: ApplyValues) => {
+    if (data.honeypot) return;
+    try {
+      setSubmitting(true);
+      const res = await fetch("/api/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) throw new Error("Submission failed");
+      toast.success("Application submitted.");
+      reset();
+    } catch (e: any) {
+      toast.error(e.message || "Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      aria-live="polite"
+      className="space-y-4"
+    >
+      <input type="text" className="hidden" tabIndex={-1} autoComplete="off" {...register("honeypot")} />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="firstName">First name</Label>
+          <Input id="firstName" {...register("firstName")} aria-invalid={!!errors.firstName} />
+          {errors.firstName && <p className="mt-1 text-xs text-red-600">{errors.firstName.message}</p>}
+        </div>
+        <div>
+          <Label htmlFor="lastName">Last name</Label>
+          <Input id="lastName" {...register("lastName")} aria-invalid={!!errors.lastName} />
+          {errors.lastName && <p className="mt-1 text-xs text-red-600">{errors.lastName.message}</p>}
+        </div>
+      </div>
+      <div>
+        <Label htmlFor="email">Email</Label>
+        <Input id="email" type="email" {...register("email")} aria-invalid={!!errors.email} />
+        {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email.message}</p>}
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="loanAmount">Loan amount</Label>
+          <Input id="loanAmount" inputMode="numeric" {...register("loanAmount")} aria-invalid={!!errors.loanAmount} />
+          {errors.loanAmount && <p className="mt-1 text-xs text-red-600">{errors.loanAmount.message}</p>}
+        </div>
+        <div>
+          <Label htmlFor="purpose">Purpose of loan</Label>
+          <Select id="purpose" {...register("purpose")}>
+            <option value="">Select purpose</option>
+            {["Working Capital","Inventory","Equipment","Marketing","Bridge","Other"].map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </Select>
+          {errors.purpose && <p className="mt-1 text-xs text-red-600">{errors.purpose.message}</p>}
+        </div>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div>
+          <Label htmlFor="monthlyRevenue">Monthly revenue (optional)</Label>
+          <Input id="monthlyRevenue" {...register("monthlyRevenue")} />
+        </div>
+        <div>
+          <Label htmlFor="timeInBusiness">Time in business (optional)</Label>
+          <Input id="timeInBusiness" placeholder="e.g., 2 years" {...register("timeInBusiness")} />
+        </div>
+        <div>
+          <Label htmlFor="website">Website/Store URL (optional)</Label>
+          <Input id="website" placeholder="https://..." {...register("website")} />
+          {errors.website && <p className="mt-1 text-xs text-red-600">{errors.website.message}</p>}
+        </div>
+      </div>
+      <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+        <p>By submitting, you consent to be contacted via email, phone, and text. Message/data rates may apply.</p>
+        <p>E‑Sign acknowledgment: You agree to receive and sign documents electronically.</p>
+        <p>No guarantee of approval. Decisions and funding times vary by applicant.</p>
+        {/* Netlify Forms ready alternative:
+          <form name="apply" data-netlify="true" netlify-honeypot="bot-field" hidden>
+            <input type="hidden" name="form-name" value="apply" />
+            ...fields...
+          </form>
+        */}
+        {/* Vercel/Serverless webhook example:
+          await fetch(process.env.WEBHOOK_URL!, { method: "POST", body: JSON.stringify(data) })
+        */}
+      </div>
+      <Button type="submit" disabled={submitting}>
+        {submitting ? "Submitting..." : "Submit Application"}
+      </Button>
+    </form>
+  );
+}
+components/form/contact-form.tsx
+"use client";
+
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { contactSchema } from "@/lib/validation";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { useState } from "react";
+
+type ContactValues = z.infer<typeof contactSchema>;
+
+export function ContactForm() {
+  const [submitting, setSubmitting] = useState(false);
+  const { register, handleSubmit, formState: { errors }, reset } = useForm<ContactValues>({
+    resolver: zodResolver(contactSchema)
+  });
+
+  const onSubmit = async (data: ContactValues) => {
+    if (data.honeypot) return;
+    try {
+      setSubmitting(true);
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) throw new Error("Submission failed");
+      toast.success("Message sent.");
+      reset();
+    } catch (e: any) {
+      toast.error(e.message || "Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} aria-live="polite" className="space-y-4">
+      <input type="text" className="hidden" tabIndex={-1} autoComplete="off" {...register("honeypot")} />
+      <div>
+        <Label htmlFor="name">Name</Label>
+        <Input id="name" {...register("name")} aria-invalid={!!errors.name} />
+        {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name.message}</p>}
+      </div>
+      <div>
+        <Label htmlFor="email">Email</Label>
+        <Input id="email" type="email" {...register("email")} aria-invalid={!!errors.email} />
+        {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email.message}</p>}
+      </div>
+      <div>
+        <Label htmlFor="phone">Phone (optional)</Label>
+        <Input id="phone" {...register("phone")} />
+      </div>
+      <div>
+        <Label htmlFor="message">Message</Label>
+        <Textarea id="message" {...register("message")} aria-invalid={!!errors.message} />
+        {errors.message && <p className="mt-1 text-xs text-red-600">{errors.message.message}</p>}
+      </div>
+      <Button type="submit" disabled={submitting}>
+        {submitting ? "Sending..." : "Send Message"}
+      </Button>
+    </form>
+  );
+}
+app/layout.tsx
+import type { Metadata } from "next";
+import "./globals.css";
+import { Header } from "@/components/header";
+import { Footer } from "@/components/footer";
+import { MobileStickyCTA } from "@/components/mobile-cta";
+import { SEOJsonLd } from "@/components/seo-jsonld";
+import { Toaster } from "sonner";
+
+export const metadata: Metadata = {
+  metadataBase: new URL("https://www.sunanchorcapital.com"),
+  title: {
+    default: "SunAnchor Capital — Small Business Financing",
+    template: "%s — SunAnchor Capital"
+  },
+  description:
+    "Flexible working capital for small businesses: short-term loans, merchant cash advances, and asset-backed lending. Fast decisions, transparent terms, dedicated support.",
+  openGraph: {
+    title: "SunAnchor Capital — Small Business Financing",
+    description:
+      "Flexible working capital for small businesses: short-term loans, MCAs, and asset-backed solutions.",
+    url: "https://www.sunanchorcapital.com",
+    siteName: "SunAnchor Capital",
+    type: "website"
+  },
+  alternates: { canonical: "https://www.sunanchorcapital.com" }
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <head>
+        <SEOJsonLd />
+      </head>
+      <body className="flex min-h-screen flex-col">
+        <Header />
+        <main id="content" className="flex-1">{children}</main>
+        <Footer />
+        <MobileStickyCTA />
+        <Toaster position="top-center" richColors />
+      </body>
+    </html>
+  );
+}
+app/page.tsx (Home)
+import { Hero } from "@/components/hero";
+import { ValueProps } from "@/components/value-props";
+import { ProductCards } from "@/components/product-cards";
+import { Steps } from "@/components/steps";
+import { Testimonials } from "@/components/testimonials";
+import { LogoStrip } from "@/components/logo-strip";
+
+export default function HomePage() {
+  return (
+    <>
+      <Hero />
+      <ValueProps />
+      <ProductCards />
+      <Steps />
+      <LogoStrip />
+      <Testimonials />
+      <section className="bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-12">
+          <h2 className="text-2xl font-semibold text-slate-900">FAQs</h2>
+          <div className="mt-6 grid gap-6 md:grid-cols-2">
+            <div>
+              <h3 className="font-semibold text-slate-900">Eligibility basics</h3>
+              <p className="mt-2 text-sm text-slate-700">
+                We commonly work with businesses operating for at least 6 months with consistent
+                revenue. We serve many industries including retail, restaurants, e‑commerce, home
+                services, healthcare, and logistics.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-slate-900">Documents</h3>
+              <p className="mt-2 text-sm text-slate-700">
+                Typically recent bank statements, identity verification, and business documents.
+                Additional information may be requested during underwriting.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-slate-900">Timing</h3>
+              <p className="mt-2 text-sm text-slate-700">
+                Timing varies by product and application. Some decisions are made in 24–48 hours
+                (not guaranteed).
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-slate-900">Costs</h3>
+              <p className="mt-2 text-sm text-slate-700">
+                Pricing may be expressed as APR or factor rate depending on product. MCAs use factor
+                rates and are not loans.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </>
+  );
+}
+app/apply/page.tsx
+import { ApplyForm } from "@/components/form/apply-form";
+
+export const metadata = {
+  title: "Apply",
+  description: "Apply for small business funding from SunAnchor Capital"
+};
+
+export default function ApplyPage() {
+  return (
+    <section className="bg-white">
+      <div className="mx-auto max-w-3xl px-4 py-12">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Apply</h1>
+        <p className="mt-2 text-slate-700">
+          Complete the form below and our team will review your request.
+        </p>
+        <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6">
+          <ApplyForm />
+        </div>
+        <div className="mt-6 text-xs text-slate-600">
+          <p>
+            SunAnchor Capital is not a bank. Approvals and funding times vary. Terms, amounts, and
+            pricing depend on credit and underwriting. MCAs are purchase-and-sale of receivables, not loans.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+app/about/page.tsx
+export const metadata = {
+  title: "About",
+  description: "About SunAnchor Capital"
+};
+
+export default function AboutPage() {
+  return (
+    <section className="bg-white">
+      <div className="mx-auto max-w-6xl px-4 py-12">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">About SunAnchor Capital</h1>
+        <div className="mt-4 grid gap-8 md:grid-cols-2">
+          <div>
+            <h2 className="text-xl font-semibold">Our story</h2>
+            <p className="mt-2 text-slate-700">
+              SunAnchor Capital was founded to make small-business financing straightforward and
+              supportive. We combine practical underwriting with clear communication so owners can
+              move quickly and confidently.
+            </p>
+            <h2 className="mt-6 text-xl font-semibold">Mission</h2>
+            <p className="mt-2 text-slate-700">
+              Help small businesses access working capital with clarity, speed, and respect.
+            </p>
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold">Who we serve</h2>
+            <ul className="mt-2 list-disc pl-5 text-slate-700">
+              <li>Retail and restaurants</li>
+              <li>E‑commerce and marketplaces</li>
+              <li>Home services and contractors</li>
+              <li>Healthcare and professional services</li>
+              <li>Logistics and light manufacturing</li>
+            </ul>
+            <h2 className="mt-6 text-xl font-semibold">How we help</h2>
+            <ul className="mt-2 list-disc pl-5 text-slate-700">
+              <li>Working capital for inventory and payroll</li>
+              <li>Growth projects and marketing campaigns</li>
+              <li>Bridging cash flow between receivables</li>
+            </ul>
+          </div>
+        </div>
+        <div className="mt-8 rounded-xl border border-slate-200 bg-slate-50 p-6">
+          <p className="text-slate-700">
+            Sample metrics: “Funded $X+ to Y+ businesses” (replace with real figures when available).
+          </p>
+          <p className="mt-2 text-slate-600 text-sm">
+            Leadership: Add executive bios and experience to enhance credibility.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+app/products/page.tsx
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+
+export const metadata = {
+  title: "Products",
+  description:
+    "Short-Term Loans, Merchant Cash Advance, and Asset-Backed Lending"
+};
+
+export default function ProductsPage() {
+  return (
+    <section className="bg-white">
+      <div className="mx-auto max-w-6xl px-4 py-12">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Products</h1>
+
+        <div id="stl" className="mt-8">
+          <h2 className="text-2xl font-semibold">Short-Term Loans</h2>
+          <p className="mt-2 text-slate-700">
+            Working capital for inventory, payroll, and marketing. Fixed term with predictable
+            payments. Example ranges only — actual offers vary by underwriting.
+          </p>
+          <ul className="mt-2 list-disc pl-5 text-slate-700">
+            <li>Typical amounts: $10k–$250k (examples only)</li>
+            <li>Terms: ~3–18 months (examples only)</li>
+            <li>Docs: bank statements, IDs, business docs</li>
+            <li>Repayment: fixed daily/weekly/monthly depending on program</li>
+          </ul>
+          <Link href="/apply" className="mt-3 inline-block no-underline">
+            <Button>Apply Now</Button>
+          </Link>
+        </div>
+
+        <div id="mca" className="mt-10">
+          <h2 className="text-2xl font-semibold">Merchant Cash Advance (MCA)</h2>
+          <p className="mt-2 text-slate-700">
+            An advance of funds in exchange for a purchase of future receivables. Remittances are a
+            variable percentage of card sales. Quick access but generally higher cost and not a loan.
+          </p>
+          <ul className="mt-2 list-disc pl-5 text-slate-700">
+            <li>Not a loan; it is a purchase-and-sale of receivables</li>
+            <li>Variable remittances aligned to card processing volume</li>
+            <li>Risk/fit: best for card-heavy businesses needing speed—compare options carefully</li>
+          </ul>
+          <Link href="/apply" className="mt-3 inline-block no-underline">
+            <Button>Apply Now</Button>
+          </Link>
+        </div>
+
+        <div id="abl" className="mt-10">
+          <h2 className="text-2xl font-semibold">Asset-Backed Lending</h2>
+          <p className="mt-2 text-slate-700">
+            Collateralize receivables, equipment, inventory, or real estate (bridge) to access
+            larger amounts and potentially lower cost than unsecured options.
+          </p>
+          <ul className="mt-2 list-disc pl-5 text-slate-700">
+            <li>Collateral: A/R, equipment, inventory, or real estate bridge</li>
+            <li>Amounts/terms: depend on collateral and underwriting (examples vary)</li>
+            <li>Ongoing monitoring and covenants may apply at a high level</li>
+          </ul>
+          <Link href="/apply" className="mt-3 inline-block no-underline">
+            <Button>Apply Now</Button>
+          </Link>
+        </div>
+
+        <div className="mt-12">
+          <h2 className="text-2xl font-semibold">Compare Options</h2>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[700px] border border-slate-200 text-sm">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="border-b border-slate-200 p-3 text-left">Feature</th>
+                  <th className="border-b border-slate-200 p-3 text-left">Short-Term Loan</th>
+                  <th className="border-b border-slate-200 p-3 text-left">MCA</th>
+                  <th className="border-b border-slate-200 p-3 text-left">ABL</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="border-b p-3">Typical Use</td>
+                  <td className="border-b p-3">Inventory, payroll, marketing</td>
+                  <td className="border-b p-3">Speed and flexibility tied to sales</td>
+                  <td className="border-b p-3">Larger needs backed by assets</td>
+                </tr>
+                <tr>
+                  <td className="border-b p-3">Speed</td>
+                  <td className="border-b p-3">Fast (days)</td>
+                  <td className="border-b p-3">Fastest (often days)</td>
+                  <td className="border-b p-3">Varies (collateral diligence)</td>
+                </tr>
+                <tr>
+                  <td className="border-b p-3">Payment Style</td>
+                  <td className="border-b p-3">Fixed schedule</td>
+                  <td className="border-b p-3">Variable % of card sales</td>
+                  <td className="border-b p-3">Variable, covenant-based</td>
+                </tr>
+                <tr>
+                  <td className="border-b p-3">Cost Structure</td>
+                  <td className="border-b p-3">APR</td>
+                  <td className="border-b p-3">Factor rate (not APR)</td>
+                  <td className="border-b p-3">Varies; potentially lower cost</td>
+                </tr>
+                <tr>
+                  <td className="border-b p-3">Collateral</td>
+                  <td className="border-b p-3">Unsecured</td>
+                  <td className="border-b p-3">Receivables (future sales)</td>
+                  <td className="border-b p-3">A/R, equipment, inventory, RE</td>
+                </tr>
+                <tr>
+                  <td className="p-3">Best For</td>
+                  <td className="p-3">Predictable cash flows</td>
+                  <td className="p-3">Card-heavy sales needing speed</td>
+                  <td className="p-3">Asset-rich businesses</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-3 text-xs text-slate-600">
+            SunAnchor Capital is not a bank. Product availability and terms vary. MCAs are not loans.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+app/contact/page.tsx
+import { ContactForm } from "@/components/form/contact-form";
+
+export const metadata = {
+  title: "Contact",
+  description: "Contact SunAnchor Capital"
+};
+
+export default function ContactPage() {
+  return (
+    <section className="bg-white">
+      <div className="mx-auto max-w-3xl px-4 py-12">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Contact Us</h1>
+        <p className="mt-2 text-slate-700">
+          Have questions? Send us a message and we’ll get back shortly.
+        </p>
+        <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6">
+          <ContactForm />
+        </div>
+        <div className="mt-6 text-sm text-slate-700">
+          <p>Address: 123 Market St, Suite 500, New York, NY 10001</p>
+          <p>Hours: Mon–Fri 9:00am–6:00pm ET</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+app/privacy/page.tsx
+export const metadata = {
+  title: "Privacy Policy",
+  description: "Privacy Policy for SunAnchor Capital"
+};
+
+export default function PrivacyPage() {
+  return (
+    <section className="bg-white">
+      <div className="mx-auto max-w-3xl px-4 py-12 prose prose-slate">
+        <h1>Privacy Policy</h1>
+        <p>
+          We use your information to review applications, provide support, and improve our services.
+          We do not sell your personal information. We may share information with third-party
+          service providers and funding partners as needed for underwriting and servicing.
+        </p>
+        <h2>Data Collection</h2>
+        <p>
+          We collect information you provide (such as application details) and technical data
+          (such as device, browser, and usage). Cookies may be used for functionality and analytics.
+        </p>
+        <h2>Use of Information</h2>
+        <ul>
+          <li>Evaluate and process applications</li>
+          <li>Communicate with you about your request</li>
+          <li>Comply with legal obligations</li>
+        </ul>
+        <h2>Storage and Security</h2>
+        <p>
+          We take reasonable measures to protect information. Retention varies by product and legal
+          requirements. Contact us to request access or correction where applicable.
+        </p>
+        <h2>Cookies</h2>
+        <p>We may use cookies. A cookie notice and preferences tool may be provided.</p>
+        <p>Contact: privacy@sunanchorcapital.com</p>
+      </div>
+    </section>
+  );
+}
+app/disclosures/page.tsx
+export const metadata = {
+  title: "Disclosures",
+  description: "Disclosures for SunAnchor Capital"
+};
+
+export default function DisclosuresPage() {
+  return (
+    <section className="bg-white">
+      <div className="mx-auto max-w-3xl px-4 py-12 prose prose-slate">
+        <h1>Disclosures</h1>
+        <p>
+          SunAnchor Capital is not a bank. Products may be provided by third-party funders.
+          Approvals and funding times vary. Rates, factor costs, and terms depend on credit and
+          underwriting. This is not a commitment to lend.
+        </p>
+        <p>
+          Merchant Cash Advances (MCAs) are purchase-and-sale of receivables, not loans.
+          Read agreements carefully. Compare options to determine the best fit for your business.
+        </p>
+        <p>
+          By clicking Apply, you consent to be contacted via email, phone, and text. Message/data
+          rates may apply.
+        </p>
+      </div>
+    </section>
+  );
+}
+app/api/apply/route.ts
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { applySchema } from "@/lib/validation";
+import { appendJson } from "@/lib/storage";
+import { rateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/ip";
+
+export async function POST(req: Request) {
+  const ip = getClientIp();
+  if (!rateLimit(`apply:${ip}`, 5, 60_000)) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const parsed = applySchema.safeParse(body);
+  if (!parsed.success || (parsed.data.honeypot && parsed.data.honeypot.length)) {
+    return NextResponse.json({ error: "Invalid submission" }, { status: 400 });
+  }
+  const data = parsed.data;
+
+  // Log to server console
+  console.log("[apply] submission", {
+    firstName: data.firstName,
+    lastName: data.lastName,
+    email: data.email,
+    loanAmount: data.loanAmount,
+    purpose: data.purpose
+  });
+
+  // Persist locally
+  await appendJson("applications.json", data);
+
+  // Optional: email/webhook integration placeholders
+  // if (process.env.WEBHOOK_URL) {
+  //   await fetch(process.env.WEBHOOK_URL, { method: "POST", body: JSON.stringify(data) });
+  // }
+  // if (process.env.EMAIL_TO) {
+  //   // send email via your provider of choice
+  // }
+
+  return NextResponse.json({ ok: true });
+}
+app/api/contact/route.ts
+import { NextResponse } from "next/server";
+import { contactSchema } from "@/lib/validation";
+import { appendJson } from "@/lib/storage";
+import { rateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/ip";
+
+export async function POST(req: Request) {
+  const ip = getClientIp();
+  if (!rateLimit(`contact:${ip}`, 5, 60_000)) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const parsed = contactSchema.safeParse(body);
+  if (!parsed.success || (parsed.data.honeypot && parsed.data.honeypot.length)) {
+    return NextResponse.json({ error: "Invalid submission" }, { status: 400 });
+  }
+  const data = parsed.data;
+
+  console.log("[contact] submission", { name: data.name, email: data.email });
+  await appendJson("contacts.json", data);
+
+  // Optional: webhook/email
+  // if (process.env.WEBHOOK_URL) { await fetch(process.env.WEBHOOK_URL, { method: "POST", body: JSON.stringify(data) }); }
+
+  return NextResponse.json({ ok: true });
+}
+public/logo.svg
+<svg width="160" height="40" viewBox="0 0 160 40" xmlns="http://www.w3.org/2000/svg">
+  <rect width="160" height="40" rx="6" fill="#1e3a8a"/>
+  <text x="12" y="26" font-size="16" font-family="Arial, Helvetica, sans-serif" fill="#fff">SunAnchor Capital</text>
+</svg>
+README.md
+## SunAnchor Capital — Next.js App
+
+Production-ready small-business lending site built with Next.js (App Router), TypeScript, and Tailwind.
+
+### Tech
+- Next.js 14 (App Router), React 18, TypeScript
+- Tailwind CSS
+- Forms: React Hook Form + Zod
+- Icons: lucide-react
+- Toasts: sonner
+- API routes with validation, basic rate limiting, honeypot, JSON file storage
+
+### Getting Started
+```bash
+pnpm install
+pnpm dev
+# or
+npm install
+npm run dev
+Open http://localhost:3000.
+
+Environment
+Copy .env.example to .env.local if using optional EMAIL_TO/WEBHOOK_URL.
+
+Deployment
+Vercel: push to Git, import in Vercel, set env vars if needed. API routes run in Node runtime by default; file storage is ephemeral on serverless—send to a DB or webhook for production.
+Netlify: add a build command next build and run command next start. For Netlify Forms, reference commented block in forms and add data-netlify="true".
+Notes
+File storage (/data/*.json) is for local dev/demo; replace with DB or webhook.
+Compliance disclaimers are included in footer, products, and apply page.
+Accessibility: semantic HTML, labeled inputs, focus styles, aria-live on forms, skip link, responsive, high contrast.
+Performance: optimized structure, minimal scripts, lazy content by default.
+
+### app/contact/page.tsx, app/about/page.tsx, etc.
+(Already provided above.)
+
+### app/favicon.ico
+Provide any small placeholder or leave as default.
+
+Status: Scaffolding is complete in code form. To proceed:
+- Create the directory /workspace/sunanchor-capital.
+- Paste files accordingly.
+- Run pnpm install and pnpm dev.
+
+If you’d like, I can try running the install and dev commands directly once the files exist.
