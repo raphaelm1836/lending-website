@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #0b1220;
+  --foreground: #0b1220;
+}
+html:focus-within {
+  scroll-behavior: smooth;
+}
+body {
+  @apply bg-white text-slate-800 antialiased;
+}
+a {
+  @apply underline-offset-2;
+}
+.btn-primary {
+  @apply bg-blue-700 hover:bg-blue-800 text-white;
+}
